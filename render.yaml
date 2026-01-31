@@ -1,0 +1,40 @@
+# EPFO Recovery Soft - Render Blueprint
+# Deploy: Push to GitHub → Connect repo in Render → New Blueprint
+# See RENDER_DEPLOY.md for full steps and required env vars.
+
+services:
+  # Backend (Node.js Web Service)
+  - type: web
+    name: epfo-recovery-backend
+    runtime: node
+    plan: free
+    region: singapore  # oregon | ohio | virginia | frankfurt | singapore
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false  # MongoDB Atlas URI — set in Render dashboard
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: "7d"
+      - key: GROQ_API_KEY
+        sync: false  # Optional — set if using Groq features
+      - key: FRONTEND_URL
+        sync: false  # Frontend URL, e.g. https://epfo-recovery-frontend.onrender.com
+
+  # Frontend (Static Site)
+  - type: web
+    name: epfo-recovery-frontend
+    runtime: static
+    plan: free
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        sync: false  # Backend API URL, e.g. https://epfo-recovery-backend.onrender.com/api
