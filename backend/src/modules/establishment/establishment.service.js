@@ -207,6 +207,14 @@ export async function getEstablishmentsByUsername(username) {
 }
 
 /**
+ * Clear all establishment data for a user
+ */
+export async function clearAllEstablishments(username) {
+  const result = await Establishment.deleteMany({ username: username });
+  return { count: result.deletedCount };
+}
+
+/**
  * Get establishment by ESTA CODE and regional office
  */
 export async function getEstablishmentByCode(estaCode, regionalOfficeCode) {

@@ -10,12 +10,16 @@ import logger from '../utils/logger.js';
 // Use environment variable for production, fallback to relative URL for development
 const baseURL = import.meta.env.VITE_API_URL || 
   (import.meta.env.MODE === 'production' 
-    ? 'https://epfo-recovery-backend.onrender.com/api'  // Production backend URL (will be set in Render)
+    ? 'https://epfo-recovery-backend.onrender.com/api'  // Production backend URL (from epfo-recovery-soft)
     : '/api');  // Development - uses Vite proxy
 
 const api = axios.create({
   baseURL: baseURL,
+  timeout: 60000, // 60s - allows Render free-tier backend to wake from cold start
 });
+
+/** Timeout for large file uploads (e.g. 20k+ rows) - 10 minutes */
+export const UPLOAD_TIMEOUT_MS = 600000;
 
 // Token storage key
 const TOKEN_KEY = 'epfo_recovery_token';

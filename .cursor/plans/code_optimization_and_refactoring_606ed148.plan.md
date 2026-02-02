@@ -100,6 +100,7 @@ todos:
     status: pending
     dependencies:
       - simplify-functions
+isProject: false
 ---
 
 # Code Optimization an
@@ -289,8 +290,6 @@ frontend/src/
 └── ...
 ```
 
-
-
 #### 6.2 Backend Structure
 
 ```javascript
@@ -314,8 +313,6 @@ backend/src/
 │   └── logger.js     (Enhanced)
 └── ...
 ```
-
-
 
 ## Implementation Order
 

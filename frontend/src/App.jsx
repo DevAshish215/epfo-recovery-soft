@@ -102,6 +102,7 @@ function App() {
     rrcSearchQuery,
     rrcIrNirFilter,
     setRrcData,
+    setRrcDataLoaded,
     setRrcSearchQuery,
     setRrcIrNirFilter,
     loadRRCData,
@@ -117,6 +118,7 @@ function App() {
     establishmentCurrentPage,
     establishmentSearchQuery,
     setEstablishmentData,
+    setEstablishmentDataLoaded,
     setEstablishmentCurrentPage,
     setEstablishmentSearchQuery,
     loadEstablishmentData,
@@ -183,6 +185,8 @@ function App() {
       if (response.data.success) {
         setSuccess(`RRC data uploaded successfully! ${response.data.data.recordsProcessed} records processed.`);
         fileInput.value = '';
+        // Refresh RRC data so View RRC Data shows the new records (await so state is updated before handler finishes)
+        await loadRRCData(true, true);
       }
     } catch (err) {
       // Get error message from response, or use default message
@@ -237,9 +241,9 @@ function App() {
       if (response.data.success) {
         setSuccess(`Establishment data uploaded successfully! ${response.data.data.recordsProcessed} records processed. Establishment data has been automatically synced to RRC records.`);
         fileInput.value = '';
-        // Refresh RRC data to show synced values
+        // Refresh RRC data to show synced values (silent so we keep the establishment success message)
         if (rrcDataLoaded) {
-          loadRRCData(true);
+          loadRRCData(true, true);
         }
       }
     } catch (err) {
@@ -312,6 +316,79 @@ function App() {
     } catch (err) {
       logger.error('Sync error:', err);
       setError(err.response?.data?.message || 'Failed to sync establishment data to RRC');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClearAllRRC = async () => {
+    if (!user?.username) return;
+    const confirmed = window.confirm(
+      'Are you sure you want to clear ALL RRC data? All records will be moved to Trash. You can restore them from Trash if needed.'
+    );
+    if (!confirmed) return;
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    try {
+      const response = await api.delete(`/rrc/clear-all?username=${encodeURIComponent(user.username)}`);
+      if (response.data?.success) {
+        setSuccess(response.data.message || 'All RRC data cleared.');
+        setRrcDataLoaded(false);
+        setRrcData([]);
+        // Do not call loadRRCData here - leave state empty so next upload or tab switch fetches fresh data
+      }
+    } catch (err) {
+      logger.error('Clear all RRC error:', err);
+      setError(err.response?.data?.message || 'Failed to clear RRC data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePermanentDeleteAllTrash = async () => {
+    if (!user?.username) return;
+    const confirmed = window.confirm(
+      'Are you sure you want to permanently delete ALL records in Trash? This action CANNOT be undone. All deleted RRC records will be lost forever.'
+    );
+    if (!confirmed) return;
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    try {
+      const response = await api.delete(`/rrc/trash/clear-all?username=${encodeURIComponent(user.username)}`);
+      if (response.data?.success) {
+        setSuccess(response.data.message || 'All trash permanently deleted.');
+        loadTrashData(true);
+      }
+    } catch (err) {
+      logger.error('Permanent delete all trash error:', err);
+      setError(err.response?.data?.message || 'Failed to clear trash');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClearAllEstablishment = async () => {
+    if (!user?.username) return;
+    const confirmed = window.confirm(
+      'Are you sure you want to clear ALL establishment data? This will permanently delete all establishment records. This cannot be undone.'
+    );
+    if (!confirmed) return;
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    try {
+      const response = await api.delete(`/establishment/clear-all?username=${encodeURIComponent(user.username)}`);
+      if (response.data?.success) {
+        setSuccess(response.data.message || 'All establishment data cleared.');
+        setEstablishmentDataLoaded(false);
+        setEstablishmentData([]);
+        loadEstablishmentData(true);
+      }
+    } catch (err) {
+      logger.error('Clear all establishment error:', err);
+      setError(err.response?.data?.message || 'Failed to clear establishment data');
     } finally {
       setLoading(false);
     }
@@ -942,6 +1019,24 @@ function App() {
                 </button>
                 {!showTrashInRRC && (
                   <button
+                    onClick={handleClearAllRRC}
+                    disabled={loading || loadingData || (rrcData || []).length === 0}
+                    style={{ 
+                      padding: '8px 16px', 
+                      background: loading || loadingData || (rrcData || []).length === 0 ? '#ccc' : 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)', 
+                      color: 'white', 
+                      border: 'none', 
+                      cursor: (rrcData || []).length === 0 ? 'not-allowed' : 'pointer',
+                      borderRadius: '8px',
+                      fontWeight: '500'
+                    }}
+                    title="Clear all RRC data (moves to Trash)"
+                  >
+                    Clear all RRC data
+                  </button>
+                )}
+                {!showTrashInRRC && (
+                  <button
                     onClick={syncEstablishmentToRRC}
                     disabled={loading || loadingData}
                     style={{ 
@@ -995,9 +1090,29 @@ function App() {
             {showTrashInRRC ? (
               // Trash View
               <>
-                <p style={{ marginBottom: '15px', color: '#666', fontSize: '14px' }}>
-                  Deleted RRC records are stored here. You can restore them or permanently delete them.
-                </p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '15px' }}>
+                  <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>
+                    Deleted RRC records are stored here. You can restore them or permanently delete them.
+                  </p>
+                  {trashData.length > 0 && (
+                    <button
+                      onClick={handlePermanentDeleteAllTrash}
+                      disabled={loading}
+                      style={{
+                        padding: '8px 16px',
+                        background: loading ? '#ccc' : 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
+                        color: 'white',
+                        border: 'none',
+                        cursor: loading ? 'not-allowed' : 'pointer',
+                        borderRadius: '8px',
+                        fontWeight: '500'
+                      }}
+                      title="Permanently delete all records in Trash. This cannot be undone."
+                    >
+                      {loading ? 'Deleting...' : 'Delete all Trash permanently'}
+                    </button>
+                  )}
+                </div>
                 
                 {loadingData ? (
                   <div style={{ textAlign: 'center', padding: '20px' }}>Loading trash data...</div>
@@ -1252,6 +1367,20 @@ function App() {
                 style={{ padding: '8px 16px', background: '#17a2b8', color: 'white', border: 'none', cursor: 'pointer' }}
               >
                 {loadingData ? 'Loading...' : 'Refresh'}
+              </button>
+              <button
+                onClick={handleClearAllEstablishment}
+                disabled={loading || loadingData || (establishmentData || []).length === 0}
+                style={{
+                  padding: '8px 16px',
+                  background: loading || loadingData || (establishmentData || []).length === 0 ? '#ccc' : '#dc3545',
+                  color: 'white',
+                  border: 'none',
+                  cursor: (establishmentData || []).length === 0 ? 'not-allowed' : 'pointer'
+                }}
+                title="Permanently delete all establishment data"
+              >
+                Clear all Establishment data
               </button>
               </div>
             </div>

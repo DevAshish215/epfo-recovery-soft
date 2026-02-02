@@ -6,7 +6,7 @@
 
 import express from 'express';
 import { uploadExcel, handleUploadError } from '../../middlewares/upload.middleware.js';
-import { uploadRRCExcel, getRRCsByUsername, updateRRC, deleteRRC, getTrashRRCsByUsername, restoreRRC, permanentDeleteRRC, getUniquePinCodes, updateEnforcementOfficerByPinCode, syncEstablishmentDataToRRC, getRRCById, updateRemarksForEstaCode } from './rrc.service.js';
+import { uploadRRCExcel, getRRCsByUsername, updateRRC, deleteRRC, getTrashRRCsByUsername, restoreRRC, permanentDeleteRRC, permanentDeleteAllTrashRRC, clearAllRRC, getUniquePinCodes, updateEnforcementOfficerByPinCode, syncEstablishmentDataToRRC, getRRCById, updateRemarksForEstaCode } from './rrc.service.js';
 import { validationErrorResponse, errorResponse, successResponse } from '../../utils/response.util.js';
 import XLSX from 'xlsx';
 import path from 'path';
@@ -241,6 +241,32 @@ router.get('/trash', async (req, res) => {
 });
 
 /**
+ * DELETE /api/rrc/trash/clear-all
+ * Permanently delete all RRC records in trash for user
+ */
+router.delete('/trash/clear-all', async (req, res) => {
+  try {
+    const username = req.query.username || req.body.username;
+
+    if (!username) {
+      return res.status(400).json({
+        success: false,
+        message: 'Username is required',
+      });
+    }
+
+    const result = await permanentDeleteAllTrashRRC(username);
+    res.json(successResponse(
+      { count: result.count },
+      result.count > 0 ? `All trash cleared. ${result.count} record(s) permanently deleted.` : 'Trash is already empty.'
+    ));
+  } catch (error) {
+    const { response, statusCode } = errorResponse(error.message);
+    res.status(statusCode).json(response);
+  }
+});
+
+/**
  * PUT /api/rrc/update-enforcement-officer
  * Update enforcement officer for all RRCs with a specific PIN code
  * IMPORTANT: Must be before /:id routes
@@ -265,6 +291,33 @@ router.put('/update-enforcement-officer', async (req, res) => {
 
     const result = await updateEnforcementOfficerByPinCode(username, pinCode, enforcementOfficer || '');
     res.json(successResponse(result, 'Enforcement Officer updated successfully'));
+  } catch (error) {
+    const { response, statusCode } = errorResponse(error.message);
+    res.status(statusCode).json(response);
+  }
+});
+
+/**
+ * DELETE /api/rrc/clear-all
+ * Clear all RRC data for user (soft delete - move all to trash)
+ * IMPORTANT: Must be before /:id routes
+ */
+router.delete('/clear-all', async (req, res) => {
+  try {
+    const username = req.query.username || req.body.username;
+
+    if (!username) {
+      return res.status(400).json({
+        success: false,
+        message: 'Username is required',
+      });
+    }
+
+    const result = await clearAllRRC(username);
+    res.json(successResponse(
+      { count: result.count },
+      result.count > 0 ? `All RRC data cleared. ${result.count} record(s) moved to trash.` : 'No RRC data to clear.'
+    ));
   } catch (error) {
     const { response, statusCode } = errorResponse(error.message);
     res.status(statusCode).json(response);

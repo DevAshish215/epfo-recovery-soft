@@ -16,8 +16,8 @@ export function useRRC(user, setError, setSuccess, setLoadingData) {
   const [rrcSearchQuery, setRrcSearchQuery] = useState('');
   const [rrcIrNirFilter, setRrcIrNirFilter] = useState(null); // null, 'IR', or 'NIR'
 
-  const loadRRCData = async (forceReload = false) => {
-    logger.debug('loadRRCData called', { forceReload, rrcDataLoaded, rrcDataLength: rrcData.length, user: user?.username });
+  const loadRRCData = async (forceReload = false, silentRefresh = false) => {
+    logger.debug('loadRRCData called', { forceReload, silentRefresh, rrcDataLoaded, rrcDataLength: rrcData.length, user: user?.username });
     
     // Only load if not already loaded or if force reload is requested
     if (!forceReload && rrcDataLoaded && rrcData.length > 0) {
@@ -34,8 +34,10 @@ export function useRRC(user, setError, setSuccess, setLoadingData) {
 
     logger.debug('Starting to load RRC data for user:', user.username);
     setLoadingData(true);
-    setError('');
-    setSuccess('');
+    if (!silentRefresh) {
+      setError('');
+      setSuccess('');
+    }
     
     try {
       const url = `/rrc?username=${user.username}`;
@@ -51,10 +53,12 @@ export function useRRC(user, setError, setSuccess, setLoadingData) {
         logger.debug('Setting RRC data:', rrcRecords.length, 'records');
         setRrcData(rrcRecords);
         setRrcDataLoaded(true);
-        if (rrcRecords.length > 0) {
-          setSuccess(`Loaded ${rrcRecords.length} RRC records`);
-        } else {
-          setSuccess('No RRC records found. Upload an Excel/CSV file to get started.');
+        if (!silentRefresh) {
+          if (rrcRecords.length > 0) {
+            setSuccess(`Loaded ${rrcRecords.length} RRC records`);
+          } else {
+            setSuccess('No RRC records found. Upload an Excel/CSV file to get started.');
+          }
         }
       } else {
         logger.error('Invalid response structure:', response.data);

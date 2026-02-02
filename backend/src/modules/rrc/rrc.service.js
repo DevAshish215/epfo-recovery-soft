@@ -894,6 +894,28 @@ export async function permanentDeleteRRC(id, username) {
 }
 
 /**
+ * Permanently delete all RRC records in trash for user
+ */
+export async function permanentDeleteAllTrashRRC(username) {
+  const result = await RRC.deleteMany({
+    username: username,
+    isDeleted: true,
+  });
+  return { count: result.deletedCount };
+}
+
+/**
+ * Clear all RRC data for user (soft delete - move all to trash)
+ */
+export async function clearAllRRC(username) {
+  const result = await RRC.updateMany(
+    { username: username, isDeleted: { $ne: true } },
+    { $set: { isDeleted: true, deletedAt: new Date() } }
+  );
+  return { count: result.modifiedCount };
+}
+
+/**
  * Get unique PIN codes for a user
  */
 /**

@@ -6,7 +6,7 @@
 
 import express from 'express';
 import { uploadExcel, handleUploadError } from '../../middlewares/upload.middleware.js';
-import { uploadEstablishmentExcel, getEstablishmentsByUsername } from './establishment.service.js';
+import { uploadEstablishmentExcel, getEstablishmentsByUsername, clearAllEstablishments } from './establishment.service.js';
 import { validationErrorResponse, errorResponse, successResponse } from '../../utils/response.util.js';
 import XLSX from 'xlsx';
 
@@ -111,6 +111,32 @@ router.get('/template', (req, res) => {
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', 'attachment; filename=establishment_template.xlsx');
   res.send(buffer);
+});
+
+/**
+ * DELETE /api/establishment/clear-all
+ * Clear all establishment data for user
+ */
+router.delete('/clear-all', async (req, res) => {
+  try {
+    const username = req.query.username || req.body.username;
+
+    if (!username) {
+      return res.status(400).json({
+        success: false,
+        message: 'Username is required',
+      });
+    }
+
+    const result = await clearAllEstablishments(username);
+    res.json(successResponse(
+      { count: result.count },
+      result.count > 0 ? `All establishment data cleared. ${result.count} record(s) deleted.` : 'No establishment data to clear.'
+    ));
+  } catch (error) {
+    const { response, statusCode } = errorResponse(error.message);
+    res.status(statusCode).json(response);
+  }
 });
 
 /**
