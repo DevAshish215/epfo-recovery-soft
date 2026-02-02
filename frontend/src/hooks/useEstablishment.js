@@ -3,7 +3,7 @@
  * Handles establishment data management
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import api from '../api/api.js';
 import { extractErrorMessage } from '../utils/error.util.js';
 
@@ -13,7 +13,17 @@ export function useEstablishment(user, setError, setSuccess, setLoadingData) {
   const [establishmentCurrentPage, setEstablishmentCurrentPage] = useState(1);
   const [establishmentSearchQuery, setEstablishmentSearchQuery] = useState('');
 
+  // Reset establishment data when user changes (e.g. logout or new user login) so new users don't see previous user's data
+  useEffect(() => {
+    setEstablishmentData([]);
+    setEstablishmentDataLoaded(false);
+    setEstablishmentCurrentPage(1);
+    setEstablishmentSearchQuery('');
+  }, [user?.username]);
+
   const loadEstablishmentData = async (forceReload = false) => {
+    if (!user?.username) return;
+
     // Only load if not already loaded or if force reload is requested
     if (!forceReload && establishmentDataLoaded && establishmentData.length > 0) {
       return; // Data already loaded, don't reload
@@ -43,6 +53,7 @@ export function useEstablishment(user, setError, setSuccess, setLoadingData) {
   };
 
   const clearEstablishmentData = async () => {
+    if (!user?.username) return;
     setLoadingData(true);
     setError('');
     try {

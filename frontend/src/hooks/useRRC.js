@@ -3,7 +3,7 @@
  * Handles RRC data loading and management
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import api from '../api/api.js';
 import logger from '../utils/logger.js';
 import { extractErrorMessage } from '../utils/error.util.js';
@@ -15,6 +15,16 @@ export function useRRC(user, setError, setSuccess, setLoadingData) {
   const [trashDataLoaded, setTrashDataLoaded] = useState(false);
   const [rrcSearchQuery, setRrcSearchQuery] = useState('');
   const [rrcIrNirFilter, setRrcIrNirFilter] = useState(null); // null, 'IR', or 'NIR'
+
+  // Reset RRC data when user changes (e.g. logout or new user login) so new users don't see previous user's data
+  useEffect(() => {
+    setRrcData([]);
+    setTrashData([]);
+    setRrcDataLoaded(false);
+    setTrashDataLoaded(false);
+    setRrcSearchQuery('');
+    setRrcIrNirFilter(null);
+  }, [user?.username]);
 
   const loadRRCData = async (forceReload = false) => {
     logger.debug('loadRRCData called', { forceReload, rrcDataLoaded, rrcDataLength: rrcData.length, user: user?.username });
