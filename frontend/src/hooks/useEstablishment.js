@@ -42,6 +42,25 @@ export function useEstablishment(user, setError, setSuccess, setLoadingData) {
     }
   };
 
+  const clearEstablishmentData = async () => {
+    setLoadingData(true);
+    setError('');
+    try {
+      const response = await api.delete(`/establishment?username=${user.username}`);
+      if (response.data && response.data.success) {
+        setEstablishmentData([]);
+        setEstablishmentDataLoaded(true); // Mark as loaded so we show "No data" state
+        setEstablishmentCurrentPage(1);
+        setEstablishmentSearchQuery('');
+        setSuccess(response.data.message || 'All establishment data cleared. Upload an Excel file to add data again.');
+      }
+    } catch (err) {
+      setError(extractErrorMessage(err, 'Failed to clear establishment data'));
+    } finally {
+      setLoadingData(false);
+    }
+  };
+
   return {
     // State
     establishmentData,
@@ -55,6 +74,7 @@ export function useEstablishment(user, setError, setSuccess, setLoadingData) {
     setEstablishmentSearchQuery,
     // Functions
     loadEstablishmentData,
+    clearEstablishmentData,
   };
 }
 

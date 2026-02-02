@@ -216,3 +216,12 @@ export async function getEstablishmentByCode(estaCode, regionalOfficeCode) {
   });
 }
 
+/**
+ * Delete all establishments for a user
+ * Use when user wants to start fresh; data will only reappear when they upload again
+ */
+export async function deleteAllEstablishmentsByUsername(username) {
+  const result = await Establishment.deleteMany({ username });
+  return { deletedCount: result.deletedCount };
+}
+

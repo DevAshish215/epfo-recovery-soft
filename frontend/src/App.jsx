@@ -120,6 +120,7 @@ function App() {
     setEstablishmentCurrentPage,
     setEstablishmentSearchQuery,
     loadEstablishmentData,
+    clearEstablishmentData,
   } = establishment;
 
   // Handle logout with cleanup
@@ -1252,6 +1253,24 @@ function App() {
                 style={{ padding: '8px 16px', background: '#17a2b8', color: 'white', border: 'none', cursor: 'pointer' }}
               >
                 {loadingData ? 'Loading...' : 'Refresh'}
+              </button>
+              <button
+                onClick={() => {
+                  if (window.confirm('Clear all establishment data for your account? This cannot be undone. Data will only reappear when you upload an Excel file again.')) {
+                    clearEstablishmentData();
+                  }
+                }}
+                disabled={loadingData || (establishmentData || []).length === 0}
+                style={{
+                  padding: '8px 16px',
+                  background: (establishmentData || []).length === 0 || loadingData ? '#ccc' : '#dc3545',
+                  color: 'white',
+                  border: 'none',
+                  cursor: (establishmentData || []).length === 0 || loadingData ? 'not-allowed' : 'pointer',
+                }}
+                title="Remove all establishment records. Upload Excel again to add data."
+              >
+                Clear all establishment data
               </button>
               </div>
             </div>
