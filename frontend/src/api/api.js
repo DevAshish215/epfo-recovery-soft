@@ -15,6 +15,7 @@ const baseURL = import.meta.env.VITE_API_URL ||
 
 const api = axios.create({
   baseURL: baseURL,
+  timeout: 60000, // 60s - allows Render free-tier backend to wake from cold start
 });
 
 // Token storage key

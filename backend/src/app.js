@@ -19,7 +19,8 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 const allowedOrigins = [
   'http://localhost:5173',  // Local development
   'http://localhost:3000',  // Alternative local port
-  process.env.FRONTEND_URL,  // Production frontend URL from env
+  'https://epfo-recovery-frontend.onrender.com',  // Production frontend (Render)
+  process.env.FRONTEND_URL,  // Production frontend URL from env (if different)
 ].filter(Boolean); // Remove undefined values
 
 app.use(cors({
