@@ -18,11 +18,16 @@ export function extractErrorMessage(err, defaultMessage = 'An error occurred') {
       return err.response.data.error;
     }
   }
-  
+
+  // Network / CORS / timeout - user-friendly message for deployed app
+  if (err.code === 'ERR_NETWORK' || err.code === 'ECONNABORTED' || (err.message && err.message.includes('Network Error'))) {
+    return 'Cannot reach server. If you just opened the app, wait up to a minute and try again (server may be waking up).';
+  }
+
   if (err.message) {
     return err.message;
   }
-  
+
   return defaultMessage;
 }
 

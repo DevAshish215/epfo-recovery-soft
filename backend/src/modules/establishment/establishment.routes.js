@@ -6,7 +6,7 @@
 
 import express from 'express';
 import { uploadExcel, handleUploadError } from '../../middlewares/upload.middleware.js';
-import { uploadEstablishmentExcel, getEstablishmentsByUsername, clearAllEstablishments } from './establishment.service.js';
+import { uploadEstablishmentExcel, getEstablishmentsByUsername, clearAllEstablishments, deleteAllEstablishmentsByUsername } from './establishment.service.js';
 import { validationErrorResponse, errorResponse, successResponse } from '../../utils/response.util.js';
 import XLSX from 'xlsx';
 
@@ -156,6 +156,32 @@ router.get('/', async (req, res) => {
 
     const establishments = await getEstablishmentsByUsername(username);
     res.json(successResponse(establishments, 'Establishments retrieved successfully'));
+  } catch (error) {
+    const { response, statusCode } = errorResponse(error.message);
+    res.status(statusCode).json(response);
+  }
+});
+
+/**
+ * DELETE /api/establishment
+ * Delete all establishment data for the user. Data will only reappear when they upload again.
+ */
+router.delete('/', async (req, res) => {
+  try {
+    const username = req.query.username || req.body.username;
+
+    if (!username) {
+      return res.status(400).json({
+        success: false,
+        message: 'Username is required',
+      });
+    }
+
+    const result = await deleteAllEstablishmentsByUsername(username);
+    res.json(successResponse(
+      { deletedCount: result.deletedCount },
+      `All establishment data cleared (${result.deletedCount} record(s) removed). Upload an Excel file to add data again.`
+    ));
   } catch (error) {
     const { response, statusCode } = errorResponse(error.message);
     res.status(statusCode).json(response);

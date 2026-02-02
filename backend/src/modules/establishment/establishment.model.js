@@ -25,7 +25,7 @@ const establishmentSchema = new mongoose.Schema({
   ESTA_CODE: {
     type: String,
     required: true,
-    index: true,
+    // Index defined via schema.index() below to avoid duplicate
   },
   ESTA_NAME: {
     type: String,

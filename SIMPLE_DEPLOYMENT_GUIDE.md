@@ -142,6 +142,29 @@
 
 ---
 
+## How to Redeploy (After Code Changes)
+
+**Option 1: Push to GitHub (if auto-deploy is on)**
+
+1. Commit and push your changes:
+   ```bash
+   git add .
+   git commit -m "Your message"
+   git push origin main
+   ```
+2. Render will automatically redeploy the services connected to this repo. Check **Dashboard** → your service → **Events** to see the new deploy.
+
+**Option 2: Manual redeploy from Render**
+
+1. Go to https://dashboard.render.com  
+2. Open the service you want to redeploy (**epfo-recovery-backend** or **epfo-recovery-frontend**).  
+3. In the top right, click **Manual Deploy** → **Deploy latest commit**.  
+4. Wait for the build to finish (a few minutes).
+
+Redeploy **both** backend and frontend if you changed both; redeploy only the one you changed if not.
+
+---
+
 ## Part 4: Keep Backend Awake (Free Tier)
 
 1. Sign up at https://uptimerobot.com  

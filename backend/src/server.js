@@ -10,8 +10,9 @@ import logger from './utils/logger.js';
 // Connect to database
 await connectDB();
 
-// Start server
-app.listen(PORT, () => {
-  logger.info(`Server running on port ${PORT}`);
+// Start server - bind to 0.0.0.0 so Render/cloud can reach the port
+const HOST = process.env.HOST || '0.0.0.0';
+app.listen(PORT, HOST, () => {
+  logger.info(`Server running on ${HOST}:${PORT}`);
 });
 

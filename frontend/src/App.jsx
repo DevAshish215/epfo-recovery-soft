@@ -122,6 +122,7 @@ function App() {
     setEstablishmentCurrentPage,
     setEstablishmentSearchQuery,
     loadEstablishmentData,
+    clearEstablishmentData,
   } = establishment;
 
   // Handle logout with cleanup
@@ -1376,7 +1377,9 @@ function App() {
                   background: loading || loadingData || (establishmentData || []).length === 0 ? '#ccc' : '#dc3545',
                   color: 'white',
                   border: 'none',
-                  cursor: (establishmentData || []).length === 0 ? 'not-allowed' : 'pointer'
+                  cursor: (establishmentData || []).length === 0 ? 'not-allowed' : 'pointer',
+                  borderRadius: '8px',
+                  fontWeight: '500'
                 }}
                 title="Permanently delete all establishment data"
               >

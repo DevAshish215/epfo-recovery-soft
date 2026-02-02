@@ -27,7 +27,7 @@ services:
       - key: FRONTEND_URL
         sync: false  # Frontend URL, e.g. https://epfo-recovery-frontend.onrender.com
 
-  # Frontend (Static Site) — no plan field; static sites are free by default
+  # Frontend (Static Site) — omit plan; static sites use free tier by default
   - type: web
     name: epfo-recovery-frontend
     runtime: static
