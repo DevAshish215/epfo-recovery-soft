@@ -25,7 +25,7 @@ const rrcSchema = new mongoose.Schema({
   ESTA_CODE: {
     type: String,
     required: true,
-    index: true, // Index for faster lookups
+    // Index defined via schema.index() below to avoid duplicate
   },
   IR_NIR: {
     type: String,
