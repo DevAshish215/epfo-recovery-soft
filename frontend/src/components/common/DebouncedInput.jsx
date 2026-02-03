@@ -1,52 +1,23 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useDebounce } from '../../hooks/useDebounce.js';
 
 /**
- * Optimized input component with debouncing
- * Reduces re-renders and improves performance
+ * Input with debounced onChange - waits for user to stop typing before calling onChange
  */
-const DebouncedInput = React.memo(({ 
-  value: initialValue, 
-  onChange, 
-  debounce = 300,
-  ...props 
-}) => {
+const DebouncedInput = React.memo(({ value: initialValue, onChange, debounce = 300, ...props }) => {
   const [value, setValue] = useState(initialValue);
-  const timeoutRef = useRef(null);
+  const debouncedValue = useDebounce(value, debounce);
 
+  useEffect(() => setValue(initialValue), [initialValue]);
   useEffect(() => {
-    setValue(initialValue);
-  }, [initialValue]);
-
-  const debouncedOnChange = useCallback((newValue) => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
+    // Only notify parent when user's typed value has settled and differs from prop
+    if (value === debouncedValue && debouncedValue !== initialValue) {
+      onChange(debouncedValue);
     }
-    timeoutRef.current = setTimeout(() => {
-      onChange(newValue);
-    }, debounce);
-  }, [onChange, debounce]);
-
-  const handleChange = useCallback((e) => {
-    const newValue = e.target.value;
-    setValue(newValue);
-    debouncedOnChange(newValue);
-  }, [debouncedOnChange]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, []);
+  }, [debouncedValue, value, initialValue, onChange]);
 
   return (
-    <input
-      {...props}
-      value={value}
-      onChange={handleChange}
-    />
+    <input {...props} value={value} onChange={(e) => setValue(e.target.value)} />
   );
 });
 

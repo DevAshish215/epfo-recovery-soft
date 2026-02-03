@@ -70,10 +70,12 @@ body {
   background-color: var(--gov-light);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
 }
 
 #root {
   min-height: 100vh;
+  min-height: -webkit-fill-available;
 }
 
 /* Main App Container */
@@ -686,8 +688,135 @@ body {
   box-shadow: 0 2px 6px rgba(102, 126, 234, 0.2);
 }
 
-/* Responsive Design */
+/* ========== Mobile Responsive Design ========== */
+
+/* Touch-friendly base (min 44px tap targets) */
 @media (max-width: 768px) {
+  .app button,
+  .app input[type="submit"],
+  .app input[type="button"] {
+    min-height: 44px;
+  }
+  
+  .gov-tab {
+    min-height: 44px;
+    padding: 10px 14px;
+  }
+}
+
+/* Tablet and below */
+@media (max-width: 992px) {
+  .app {
+    padding: var(--gov-spacing-md);
+  }
+  
+  .gov-header h1 {
+    font-size: 1.35rem;
+  }
+  
+  .gov-card {
+    padding: var(--gov-spacing-md);
+  }
+}
+
+/* Mobile landscape / small tablet */
+@media (max-width: 768px) {
+  .app {
+    padding: var(--gov-spacing-sm);
+  }
+  
+  .gov-header {
+    padding: var(--gov-spacing-md);
+    border-radius: var(--gov-border-radius);
+  }
+  
+  .gov-header > div {
+    flex-direction: column !important;
+    gap: 12px !important;
+    align-items: stretch !important;
+  }
+  
+  .gov-header h1 {
+    font-size: 1.25rem;
+  }
+  
+  .gov-tabs {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+    padding: var(--gov-spacing-sm);
+    margin: 0 calc(-1 * var(--gov-spacing-sm)) var(--gov-spacing-md);
+    border-radius: 0;
+  }
+  
+  .gov-tab {
+    flex-shrink: 0;
+    white-space: nowrap;
+    font-size: 13px;
+  }
+  
+  .gov-card {
+    padding: var(--gov-spacing-md);
+    margin-bottom: var(--gov-spacing-md);
+  }
+  
+  .gov-card h2 {
+    font-size: 1.15rem;
+  }
+  
+  /* Tab content sections */
+  .app [style*="padding: 20px"] {
+    padding: var(--gov-spacing-md) !important;
+  }
+  
+  /* Toolbar / filter rows - stack on mobile */
+  .rrc-toolbar-row,
+  .rrc-filters-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  
+  .rrc-filters-inner {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  
+  /* Establishment pagination */
+  .est-pagination-row {
+    flex-direction: column !important;
+    gap: 10px !important;
+    text-align: center;
+  }
+  
+  .rrc-search-input {
+    min-width: 0 !important;
+    width: 100% !important;
+    flex: 1 1 100%;
+  }
+  
+  /* Button groups - wrap */
+  .rrc-btn-group {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  /* Pagination row */
+  .rrc-pagination-row {
+    flex-direction: column !important;
+    gap: 10px !important;
+    text-align: center;
+  }
+  
+  /* Table wrapper - horizontal scroll */
+  .table-scroll-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 calc(-1 * var(--gov-spacing-md));
+    padding: 0 var(--gov-spacing-md);
+  }
+  
+  /* Popups */
   .popup-container {
     width: 98%;
     max-height: 95vh;
@@ -695,14 +824,129 @@ body {
   
   .popup-content {
     flex-direction: column;
+    padding: 12px;
+  }
+  
+  .popup-header {
+    padding: var(--gov-spacing-md);
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .popup-title-left {
+    font-size: 1rem;
+  }
+  
+  .popup-title-right {
+    font-size: 0.75rem;
+  }
+  
+  .popup-actions {
+    flex-direction: column;
+    padding: var(--gov-spacing-md);
+  }
+  
+  .popup-actions button {
+    width: 100%;
+    min-width: 0;
+  }
+  
+  .popup-buttons-column {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+}
+
+/* Small phones */
+@media (max-width: 480px) {
+  .app {
+    padding: 8px;
+    padding-left: max(8px, env(safe-area-inset-left));
+    padding-right: max(8px, env(safe-area-inset-right));
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+  
+  .gov-header {
+    padding: 12px;
+  }
+  
+  .gov-header h1 {
+    font-size: 1.1rem;
+  }
+  
+  .gov-header h1::before {
+    font-size: 1.2rem;
   }
   
   .gov-tabs {
-    overflow-x: auto;
+    padding: 6px;
+    margin: 0 -8px var(--gov-spacing-md);
   }
   
-  .app {
-    padding: var(--gov-spacing-md);
+  .gov-tab {
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+  
+  .gov-card {
+    padding: 12px;
+  }
+  
+  /* Fixed toast alerts - full width on tiny screens */
+  .app-toast {
+    left: 5% !important;
+    right: 5% !important;
+    width: 90% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    transform: none !important;
+    top: max(20px, env(safe-area-inset-top)) !important;
+  }
+  
+  /* Pagination buttons - touch friendly */
+  .rrc-pagination-row button,
+  .est-pagination-row button {
+    min-height: 44px;
+    padding: 10px 16px !important;
+  }
+  
+  /* Form inputs */
+  .app input,
+  .app textarea,
+  .app select {
+    font-size: 16px !important; /* Prevents zoom on iOS */
+  }
+  
+  .popup-container {
+    width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+}
+
+/* Ensure body doesn't overflow on mobile */
+html {
+  overflow-x: hidden;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+/* Table horizontal scroll (use class on wrapper) */
+.table-scroll-wrapper table {
+  min-width: 800px;
+}
+
+/* RRC table scroll - smooth touch scrolling on mobile */
+.rrc-table-scroll {
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 768px) {
+  .rrc-table-scroll {
+    max-height: calc(100vh - 280px) !important;
+    padding: 8px !important;
   }
 }
 

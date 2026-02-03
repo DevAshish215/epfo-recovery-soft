@@ -43,25 +43,14 @@ export function extractErrorMessage(err, defaultMessage = 'An error occurred') {
  * @returns {Object} Object with message and missingColumns array
  */
 export function extractUploadError(err, defaultMessage = 'Upload failed') {
-  let errorMessage = defaultMessage;
+  let errorMessage = extractErrorMessage(err, defaultMessage);
   let missingColumns = null;
-  
-  if (err.response && err.response.data) {
-    if (err.response.data.message) {
-      errorMessage = err.response.data.message;
-    }
-    if (err.response.data.errors && err.response.data.errors.missingColumns) {
-      missingColumns = err.response.data.errors.missingColumns;
-    }
-  } else if (err.message) {
-    errorMessage = err.message;
-  }
-  
-  // If there are missing columns, add them to the error message
-  if (missingColumns && missingColumns.length > 0) {
+
+  if (err?.response?.data?.errors?.missingColumns) {
+    missingColumns = err.response.data.errors.missingColumns;
     errorMessage = `${errorMessage}. Missing columns: ${missingColumns.join(', ')}`;
   }
-  
+
   return { errorMessage, missingColumns };
 }
 

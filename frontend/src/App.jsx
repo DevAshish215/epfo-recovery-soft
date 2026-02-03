@@ -139,50 +139,37 @@ function App() {
     setActiveTab('office');
   };
 
-  // Auto-dismiss success messages after 5 seconds
+  // Auto-dismiss error and success messages after 5 seconds
   useEffect(() => {
-    if (success) {
-      const timer = setTimeout(() => {
-        setSuccess('');
-      }, 5000); // 5 seconds
-
-      // Cleanup timer on unmount or when success changes
-      return () => clearTimeout(timer);
-    }
-  }, [success]);
-
-  // Auto-dismiss error messages after 5 seconds
-  useEffect(() => {
-    if (error) {
-      const timer = setTimeout(() => {
-        setError('');
-      }, 5000); // 5 seconds
-
-      // Cleanup timer on unmount or when error changes
-      return () => clearTimeout(timer);
-    }
-  }, [error]);
+    if (!error && !success) return;
+    const timer = setTimeout(() => {
+      if (error) setError('');
+      if (success) setSuccess('');
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [error, success]);
 
   // Reset RRC pagination when filters/search change
   useEffect(() => {
     setRrcCurrentPage(1);
   }, [rrcSearchQuery, rrcIrNirFilter]);
 
-  // Office functions are now in useOffice hook - extracted above
-
-  const handleRRCUpload = async (e) => {
+  /** Shared Excel upload logic for RRC and Establishment */
+  const handleExcelUpload = async (e, config) => {
     e.preventDefault();
+    const { endpoint, successMessage, defaultError, setUploadStatus, uploadStartRef, onSuccess } = config;
+
     setError('');
     setSuccess('');
     setLoading(true);
-    setRrcUploadStatus({ stage: 'uploading', percent: 0, etaSec: null });
-    rrcUploadStartRef.current = Date.now();
+    setUploadStatus({ stage: 'uploading', percent: 0, etaSec: null });
+    uploadStartRef.current = Date.now();
 
     const fileInput = e.target.excelFile;
-    if (!fileInput.files[0]) {
+    if (!fileInput?.files[0]) {
       setError('Please select an Excel file');
       setLoading(false);
-      setRrcUploadStatus(null);
+      setUploadStatus(null);
       return;
     }
 
@@ -192,133 +179,52 @@ function App() {
     formData.append('regional_office_code', user.regional_office_code);
 
     try {
-      const response = await api.post('/rrc/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        timeout: UPLOAD_TIMEOUT_MS, // 10 min for large Excel files
+      const response = await api.post(endpoint, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: UPLOAD_TIMEOUT_MS,
         onUploadProgress: (progressEvent) => {
           const { loaded, total } = progressEvent;
           if (!total) return;
           const percent = Math.min(100, Math.round((loaded / total) * 100));
-          const elapsedMs = Math.max(1, Date.now() - (rrcUploadStartRef.current || Date.now()));
+          const elapsedMs = Math.max(1, Date.now() - (uploadStartRef.current || Date.now()));
           const bytesPerSec = loaded / (elapsedMs / 1000);
           const remainingSec = bytesPerSec > 0 ? Math.round((total - loaded) / bytesPerSec) : null;
-          const stage = percent >= 100 ? 'processing' : 'uploading';
-          setRrcUploadStatus({ stage, percent, etaSec: remainingSec });
+          setUploadStatus({ stage: percent >= 100 ? 'processing' : 'uploading', percent, etaSec: remainingSec });
         },
       });
 
-      if (response.data.success) {
-        setSuccess(`RRC data uploaded successfully! ${response.data.data.recordsProcessed} records processed.`);
+      if (response.data?.success) {
+        const records = response.data.data?.recordsProcessed ?? 0;
+        setSuccess(successMessage.replace('{count}', records));
         fileInput.value = '';
-        // Refresh RRC data so View RRC Data shows the new records (await so state is updated before handler finishes)
-        loadRRCData(true, true);
+        onSuccess?.();
       }
     } catch (err) {
-      // Get error message from response, or use extractErrorMessage for timeout/network
-      let errorMessage = 'Failed to upload RRC data';
-      let missingColumns = null;
-      
-      if (err.response && err.response.data) {
-        if (err.response.data.message) {
-          errorMessage = err.response.data.message;
-        }
-        if (err.response.data.errors && err.response.data.errors.missingColumns) {
-          missingColumns = err.response.data.errors.missingColumns;
-        }
-      } else {
-        errorMessage = extractErrorMessage(err, errorMessage);
-      }
-      
-      // If there are missing columns, add them to the error message
-      if (missingColumns && missingColumns.length > 0) {
-        errorMessage = `${errorMessage}. Missing columns: ${missingColumns.join(', ')}`;
-      }
-      
+      const { errorMessage } = extractUploadError(err, defaultError);
       setError(errorMessage);
     } finally {
       setLoading(false);
-      setRrcUploadStatus(null);
+      setUploadStatus(null);
     }
   };
 
-  const handleEstablishmentUpload = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-    setLoading(true);
-    setEstablishmentUploadStatus({ stage: 'uploading', percent: 0, etaSec: null });
-    establishmentUploadStartRef.current = Date.now();
+  const handleRRCUpload = (e) => handleExcelUpload(e, {
+    endpoint: '/rrc/upload',
+    successMessage: `RRC data uploaded successfully! {count} records processed.`,
+    defaultError: 'Failed to upload RRC data',
+    setUploadStatus: setRrcUploadStatus,
+    uploadStartRef: rrcUploadStartRef,
+    onSuccess: () => loadRRCData(true, true),
+  });
 
-    const fileInput = e.target.excelFile;
-    if (!fileInput.files[0]) {
-      setError('Please select an Excel file');
-      setLoading(false);
-      setEstablishmentUploadStatus(null);
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append('excelFile', fileInput.files[0]);
-    formData.append('username', user.username);
-    formData.append('regional_office_code', user.regional_office_code);
-
-    try {
-      const response = await api.post('/establishment/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        timeout: UPLOAD_TIMEOUT_MS, // 10 min for large Excel files
-        onUploadProgress: (progressEvent) => {
-          const { loaded, total } = progressEvent;
-          if (!total) return;
-          const percent = Math.min(100, Math.round((loaded / total) * 100));
-          const elapsedMs = Math.max(1, Date.now() - (establishmentUploadStartRef.current || Date.now()));
-          const bytesPerSec = loaded / (elapsedMs / 1000);
-          const remainingSec = bytesPerSec > 0 ? Math.round((total - loaded) / bytesPerSec) : null;
-          const stage = percent >= 100 ? 'processing' : 'uploading';
-          setEstablishmentUploadStatus({ stage, percent, etaSec: remainingSec });
-        },
-      });
-
-      if (response.data.success) {
-        setSuccess(`Establishment data uploaded successfully! ${response.data.data.recordsProcessed} records processed. Establishment data has been automatically synced to RRC records.`);
-        fileInput.value = '';
-        // Refresh RRC data to show synced values (silent so we keep the establishment success message)
-        if (rrcDataLoaded) {
-          loadRRCData(true, true);
-        }
-      }
-    } catch (err) {
-      logger.error('Establishment upload error:', err);
-      
-      // Get error message from response, or use extractErrorMessage for timeout/network
-      let errorMessage = 'Failed to upload establishment data';
-      let missingColumns = null;
-      
-      if (err.response && err.response.data) {
-        if (err.response.data.message) {
-          errorMessage = err.response.data.message;
-        }
-        if (err.response.data.errors && err.response.data.errors.missingColumns) {
-          missingColumns = err.response.data.errors.missingColumns;
-        }
-      } else {
-        errorMessage = extractErrorMessage(err, errorMessage);
-      }
-      
-      // If there are missing columns, add them to the error message
-      if (missingColumns && missingColumns.length > 0) {
-        errorMessage = `${errorMessage}. Missing columns: ${missingColumns.join(', ')}`;
-      }
-      
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-      setEstablishmentUploadStatus(null);
-    }
-  };
+  const handleEstablishmentUpload = (e) => handleExcelUpload(e, {
+    endpoint: '/establishment/upload',
+    successMessage: `Establishment data uploaded successfully! {count} records processed. Establishment data has been automatically synced to RRC records.`,
+    defaultError: 'Failed to upload establishment data',
+    setUploadStatus: setEstablishmentUploadStatus,
+    uploadStartRef: establishmentUploadStartRef,
+    onSuccess: () => rrcDataLoaded && loadRRCData(true, true),
+  });
 
   const downloadTemplate = async (type) => {
     try {
@@ -359,8 +265,7 @@ function App() {
         loadRRCData(true);
       }
     } catch (err) {
-      logger.error('Sync error:', err);
-      setError(err.response?.data?.message || 'Failed to sync establishment data to RRC');
+      setError(extractErrorMessage(err, 'Failed to sync establishment data to RRC'));
     } finally {
       setLoading(false);
     }
@@ -384,8 +289,7 @@ function App() {
         await loadRRCData(true, true);
       }
     } catch (err) {
-      logger.error('Clear all RRC error:', err);
-      setError(err.response?.data?.message || 'Failed to clear RRC data');
+      setError(extractErrorMessage(err, 'Failed to clear RRC data'));
     } finally {
       setLoading(false);
     }
@@ -407,8 +311,7 @@ function App() {
         loadTrashData(true);
       }
     } catch (err) {
-      logger.error('Permanent delete all trash error:', err);
-      setError(err.response?.data?.message || 'Failed to clear trash');
+      setError(extractErrorMessage(err, 'Failed to clear trash'));
     } finally {
       setLoading(false);
     }
@@ -432,8 +335,7 @@ function App() {
         loadEstablishmentData(true);
       }
     } catch (err) {
-      logger.error('Clear all establishment error:', err);
-      setError(err.response?.data?.message || 'Failed to clear establishment data');
+      setError(extractErrorMessage(err, 'Failed to clear establishment data'));
     } finally {
       setLoading(false);
     }
@@ -653,8 +555,6 @@ function App() {
     }
   };
 
-  // RRC and establishment values are already extracted above (lines 96-123)
-
   const handleRecoverySuccess = () => {
     // Always refresh RRC data after recovery is saved (RRC data is updated in backend)
     // Force reload to get the latest data
@@ -672,7 +572,7 @@ function App() {
       <div className="app" style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
         {/* Alert Messages at the top - Government Style */}
         {error && (
-          <div className="gov-alert gov-alert-error" style={{
+          <div className="gov-alert gov-alert-error app-toast" style={{
             position: 'fixed',
             top: '20px',
             left: '50%',
@@ -687,7 +587,7 @@ function App() {
           </div>
         )}
         {success && (
-          <div className="gov-alert gov-alert-success" style={{
+          <div className="gov-alert gov-alert-success app-toast" style={{
             position: 'fixed',
             top: '20px',
             left: '50%',
@@ -705,7 +605,7 @@ function App() {
         )}
         
         <div className="gov-header">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="gov-header-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h1>EPFO Recovery Soft</h1>
             <button 
               onClick={handleLogout} 
@@ -961,7 +861,7 @@ function App() {
             {/* Content - Only show when not loading */}
             {!loadingData && (
               <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
+              <div className="rrc-toolbar-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
               <h2 style={{ color: showTrashInRRC ? '#8b5cf6' : 'inherit' }}>
                 {showTrashInRRC ? '🗑️ Trash - Deleted RRC Records' : (() => {
                   const data = rrcData || [];
@@ -977,9 +877,9 @@ function App() {
                   return `RRC Data (${filteredCount}${rrcSearchQuery.trim() ? ` of ${data.length}` : ''} records)`;
                 })()}
               </h2>
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div className="rrc-filters-row rrc-btn-group" style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                 {!showTrashInRRC && (
-                  <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                  <div className="rrc-filters-inner" style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
                     {/* IR/NIR Filter Buttons */}
                     <button
                       onClick={() => {
@@ -1048,6 +948,7 @@ function App() {
                           e.preventDefault();
                         }
                       }}
+                      className="rrc-search-input"
                       style={{
                         padding: '6px 12px',
                         border: '1px solid #ddd',
@@ -1212,7 +1113,7 @@ function App() {
                     No deleted RRC records found. Trash is empty.
                   </div>
                 ) : (
-                  <div style={{ overflowX: 'auto', maxHeight: '600px', overflowY: 'auto', border: '1px solid #ddd', borderRadius: '4px' }}>
+                  <div className="rrc-table-scroll" style={{ overflowX: 'auto', maxHeight: '600px', overflowY: 'auto', border: '1px solid #ddd', borderRadius: '4px' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                       <thead style={{ position: 'sticky', top: 0, background: '#f5f5f5', zIndex: 10 }}>
                         <tr>
@@ -1367,7 +1268,7 @@ function App() {
                           }}
                         />
                         {filteredRrcData.length > rowsPerPage && (
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', gap: '10px' }}>
+                          <div className="rrc-pagination-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', gap: '10px' }}>
                             <button
                               onClick={() => setRrcCurrentPage(prev => Math.max(1, prev - 1))}
                               disabled={safePage === 1}
@@ -1439,7 +1340,7 @@ function App() {
         {/* View Establishment Data Tab */}
         {activeTab === 'view-establishment' && (
           <div style={{ padding: '20px', border: '1px solid #ddd', borderRadius: '4px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
+            <div className="rrc-toolbar-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
               <h2>{(() => {
                 const filteredCount = establishmentSearchQuery.trim() 
                   ? (establishmentData || []).filter(est => {
@@ -1455,10 +1356,11 @@ function App() {
                   : establishmentData.length;
                 return `Establishment Data (${filteredCount}${establishmentSearchQuery.trim() ? ` of ${establishmentData.length}` : ''} records)`;
               })()}</h2>
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+              <div className="rrc-btn-group" style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div className="rrc-filters-inner" style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
                   <input
                     type="text"
+                    className="rrc-search-input"
                     placeholder="Search by ESTA CODE, ESTA NAME, CITY, DIST, PIN..."
                     value={establishmentSearchQuery}
                     onChange={(e) => {
@@ -1549,7 +1451,7 @@ function App() {
               
               return (
                 <>
-                  <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 250px)', maxWidth: '100%', border: '1px solid #ddd', borderRadius: '4px' }}>
+                  <div className="rrc-table-scroll" style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 250px)', maxWidth: '100%', border: '1px solid #ddd', borderRadius: '4px' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '1200px' }}>
                       <thead>
                         <tr style={{ background: '#f5f5f5', position: 'sticky', top: 0, zIndex: 10 }}>
@@ -1592,7 +1494,7 @@ function App() {
                   
                   {/* Pagination Controls */}
                   {totalPages > 1 && (
-                    <div style={{ marginTop: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                    <div className="est-pagination-row rrc-pagination-row" style={{ marginTop: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <button
                           onClick={() => setEstablishmentCurrentPage(prev => Math.max(1, prev - 1))}
@@ -1705,7 +1607,7 @@ function App() {
       
       {/* Alert Messages at the top */}
       {error && (
-        <div style={{
+        <div className="app-toast" style={{
           position: 'fixed',
           top: '20px',
           left: '50%',
@@ -1726,7 +1628,7 @@ function App() {
         </div>
       )}
       {success && (
-        <div style={{
+        <div className="app-toast" style={{
           position: 'fixed',
           top: '20px',
           left: '50%',

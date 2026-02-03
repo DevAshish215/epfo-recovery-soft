@@ -2570,7 +2570,7 @@ function RRCTable({ rrcData, loading, error, username, establishmentData = [], o
 
   return (
     <>
-      <div style={{ 
+      <div className="rrc-table-scroll" style={{ 
         overflowX: 'auto', 
         overflowY: 'auto', 
         padding: '10px',
