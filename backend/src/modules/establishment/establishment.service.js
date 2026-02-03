@@ -143,44 +143,32 @@ export async function uploadEstablishmentExcel(fileBuffer, username, regionalOff
     return mapExcelToModel(excelRow);
   }).filter(record => record.ESTA_CODE); // Filter out records without ESTA_CODE
 
-  // 4. Update existing establishments or create new ones
-  const savedRecords = [];
-  for (const record of mappedRecords) {
-    const estaCode = record.ESTA_CODE;
+  // 4. Bulk upsert using bulkWrite (much faster for large files - batches of 500)
+  const BATCH_SIZE = 500;
+  let totalProcessed = 0;
 
-    if (!estaCode) {
-      // Skip records without ESTA_CODE
-      continue;
-    }
-
-    try {
-      // Upsert: Update if exists, create if new
-      // ESTA_CODE must be unique per username (data isolation by username)
-      const saved = await Establishment.findOneAndUpdate(
-        {
-          username: username,
-          ESTA_CODE: estaCode,
+  for (let i = 0; i < mappedRecords.length; i += BATCH_SIZE) {
+    const batch = mappedRecords.slice(i, i + BATCH_SIZE);
+    const bulkOps = batch.map((record) => ({
+      updateOne: {
+        filter: { username, ESTA_CODE: record.ESTA_CODE },
+        update: {
+          $set: {
+            ...record,
+            username,
+            regional_office_code: regionalOfficeCode,
+          },
         },
-        {
-          ...record,
-          username: username,
-          regional_office_code: regionalOfficeCode,
-        },
-        {
-          upsert: true,
-          new: true,
-          runValidators: true,
-        }
-      );
+        upsert: true,
+      },
+    }));
 
-      savedRecords.push(saved);
-    } catch (dbError) {
-      // Handle database errors (e.g., duplicate key, validation errors)
-      throw new Error(`Failed to save establishment with ESTA_CODE "${estaCode}": ${dbError.message}`);
-    }
+    await Establishment.bulkWrite(bulkOps, { ordered: false });
+    totalProcessed += batch.length;
+    logger.debug(`Establishment batch ${Math.floor(i / BATCH_SIZE) + 1}: processed ${batch.length} records`);
   }
 
-  if (savedRecords.length === 0) {
+  if (totalProcessed === 0) {
     throw new Error('No valid records to save. Please ensure your file has ESTA CODE or EST_ID column with valid data.');
   }
 
@@ -193,8 +181,7 @@ export async function uploadEstablishmentExcel(fileBuffer, username, regionalOff
   }
 
   return {
-    recordsProcessed: savedRecords.length,
-    records: savedRecords,
+    recordsProcessed: totalProcessed,
   };
 }
 

@@ -77,7 +77,7 @@ router.post('/upload', uploadExcel, handleUploadError, async (req, res) => {
 
 /**
  * GET /api/establishment/template
- * Download Establishment Excel template
+ * Download Establishment CSV template
  */
 router.get('/template', (req, res) => {
   // Template data with mandatory and optional columns
@@ -99,18 +99,14 @@ router.get('/template', (req, res) => {
     'ESTABLISHMENT PAN': 'ABCDE1234F',
   }];
 
-  // Create Excel file
+  // Create CSV content
   const worksheet = XLSX.utils.json_to_sheet(templateData);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Establishment Data');
-
-  // Generate buffer
-  const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+  const csv = XLSX.utils.sheet_to_csv(worksheet);
 
   // Set headers for file download
-  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  res.setHeader('Content-Disposition', 'attachment; filename=establishment_template.xlsx');
-  res.send(buffer);
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename=establishment_template.csv');
+  res.send(csv);
 });
 
 /**

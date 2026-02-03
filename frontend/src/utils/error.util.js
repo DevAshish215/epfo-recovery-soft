@@ -19,8 +19,13 @@ export function extractErrorMessage(err, defaultMessage = 'An error occurred') {
     }
   }
 
-  // Network / CORS / timeout - user-friendly message for deployed app
-  if (err.code === 'ERR_NETWORK' || err.code === 'ECONNABORTED' || (err.message && err.message.includes('Network Error'))) {
+  // Timeout - large file uploads can take several minutes
+  if (err.code === 'ECONNABORTED' || (err.message && err.message.toLowerCase().includes('timeout'))) {
+    return 'Request timed out. Large Excel files can take several minutes to process. Please try again.';
+  }
+
+  // Network / CORS - user-friendly message for deployed app
+  if (err.code === 'ERR_NETWORK' || (err.message && err.message.includes('Network Error'))) {
     return 'Cannot reach server. If you just opened the app, wait up to a minute and try again (server may be waking up).';
   }
 

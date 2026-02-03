@@ -72,7 +72,7 @@ router.post('/upload', uploadExcel, handleUploadError, async (req, res) => {
 
 /**
  * GET /api/rrc/template
- * Download RRC Excel template
+ * Download RRC CSV template
  */
 router.get('/template', (req, res) => {
   // Template data with mandatory columns and account-wise fields
@@ -127,18 +127,14 @@ router.get('/template', (req, res) => {
     'RECOVERY 7Q A/C 22': 0,
   }];
 
-  // Create Excel file
+  // Create CSV content
   const worksheet = XLSX.utils.json_to_sheet(templateData);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'RRC Data');
-
-  // Generate buffer
-  const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+  const csv = XLSX.utils.sheet_to_csv(worksheet);
 
   // Set headers for file download
-  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  res.setHeader('Content-Disposition', 'attachment; filename=rrc_template.xlsx');
-  res.send(buffer);
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename=rrc_template.csv');
+  res.send(csv);
 });
 
 /**

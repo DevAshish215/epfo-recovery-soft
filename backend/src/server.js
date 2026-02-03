@@ -12,7 +12,9 @@ await connectDB();
 
 // Start server - bind to 0.0.0.0 so Render/cloud can reach the port
 const HOST = process.env.HOST || '0.0.0.0';
-app.listen(PORT, HOST, () => {
+const server = app.listen(PORT, HOST, () => {
   logger.info(`Server running on ${HOST}:${PORT}`);
 });
+// Allow long-running uploads (10 min) for large Excel files
+server.timeout = 600000;
 

@@ -3,8 +3,8 @@
  * Refactored to use custom hooks for better code organization
  */
 
-import { useState, useEffect } from 'react';
-import api from './api/api.js';
+import { useState, useEffect, useRef } from 'react';
+import api, { UPLOAD_TIMEOUT_MS } from './api/api.js';
 import RecoveryForm from './recovery/RecoveryForm.jsx';
 import RecoveryTable from './recovery/RecoveryTable.jsx';
 import RecoveryLogs from './recovery/RecoveryLogs.jsx';
@@ -20,7 +20,7 @@ import { useAuth } from './hooks/useAuth.js';
 import { useOffice } from './hooks/useOffice.js';
 import { useRRC } from './hooks/useRRC.js';
 import { useEstablishment } from './hooks/useEstablishment.js';
-import { extractUploadError } from './utils/error.util.js';
+import { extractUploadError, extractErrorMessage } from './utils/error.util.js';
 
 function App() {
   // Tab and UI state
@@ -31,6 +31,13 @@ function App() {
   const [recoveryLogsRefresh, setRecoveryLogsRefresh] = useState(0);
   // Recovery Entry form data (persist across tab switches)
   const [recoveryFormData, setRecoveryFormData] = useState(null);
+  // RRC pagination (frontend only)
+  const [rrcCurrentPage, setRrcCurrentPage] = useState(1);
+  // Upload progress/status (RRC + Establishment)
+  const [rrcUploadStatus, setRrcUploadStatus] = useState(null); // { stage, percent, etaSec }
+  const [establishmentUploadStatus, setEstablishmentUploadStatus] = useState(null); // { stage, percent, etaSec }
+  const rrcUploadStartRef = useRef(null);
+  const establishmentUploadStartRef = useRef(null);
 
   // Use custom hooks
   const auth = useAuth();
@@ -156,6 +163,11 @@ function App() {
     }
   }, [error]);
 
+  // Reset RRC pagination when filters/search change
+  useEffect(() => {
+    setRrcCurrentPage(1);
+  }, [rrcSearchQuery, rrcIrNirFilter]);
+
   // Office functions are now in useOffice hook - extracted above
 
   const handleRRCUpload = async (e) => {
@@ -163,11 +175,14 @@ function App() {
     setError('');
     setSuccess('');
     setLoading(true);
+    setRrcUploadStatus({ stage: 'uploading', percent: 0, etaSec: null });
+    rrcUploadStartRef.current = Date.now();
 
     const fileInput = e.target.excelFile;
     if (!fileInput.files[0]) {
       setError('Please select an Excel file');
       setLoading(false);
+      setRrcUploadStatus(null);
       return;
     }
 
@@ -181,16 +196,27 @@ function App() {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
+        timeout: UPLOAD_TIMEOUT_MS, // 10 min for large Excel files
+        onUploadProgress: (progressEvent) => {
+          const { loaded, total } = progressEvent;
+          if (!total) return;
+          const percent = Math.min(100, Math.round((loaded / total) * 100));
+          const elapsedMs = Math.max(1, Date.now() - (rrcUploadStartRef.current || Date.now()));
+          const bytesPerSec = loaded / (elapsedMs / 1000);
+          const remainingSec = bytesPerSec > 0 ? Math.round((total - loaded) / bytesPerSec) : null;
+          const stage = percent >= 100 ? 'processing' : 'uploading';
+          setRrcUploadStatus({ stage, percent, etaSec: remainingSec });
+        },
       });
 
       if (response.data.success) {
         setSuccess(`RRC data uploaded successfully! ${response.data.data.recordsProcessed} records processed.`);
         fileInput.value = '';
         // Refresh RRC data so View RRC Data shows the new records (await so state is updated before handler finishes)
-        await loadRRCData(true, true);
+        loadRRCData(true, true);
       }
     } catch (err) {
-      // Get error message from response, or use default message
+      // Get error message from response, or use extractErrorMessage for timeout/network
       let errorMessage = 'Failed to upload RRC data';
       let missingColumns = null;
       
@@ -201,6 +227,8 @@ function App() {
         if (err.response.data.errors && err.response.data.errors.missingColumns) {
           missingColumns = err.response.data.errors.missingColumns;
         }
+      } else {
+        errorMessage = extractErrorMessage(err, errorMessage);
       }
       
       // If there are missing columns, add them to the error message
@@ -211,6 +239,7 @@ function App() {
       setError(errorMessage);
     } finally {
       setLoading(false);
+      setRrcUploadStatus(null);
     }
   };
 
@@ -219,11 +248,14 @@ function App() {
     setError('');
     setSuccess('');
     setLoading(true);
+    setEstablishmentUploadStatus({ stage: 'uploading', percent: 0, etaSec: null });
+    establishmentUploadStartRef.current = Date.now();
 
     const fileInput = e.target.excelFile;
     if (!fileInput.files[0]) {
       setError('Please select an Excel file');
       setLoading(false);
+      setEstablishmentUploadStatus(null);
       return;
     }
 
@@ -236,6 +268,17 @@ function App() {
       const response = await api.post('/establishment/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
+        },
+        timeout: UPLOAD_TIMEOUT_MS, // 10 min for large Excel files
+        onUploadProgress: (progressEvent) => {
+          const { loaded, total } = progressEvent;
+          if (!total) return;
+          const percent = Math.min(100, Math.round((loaded / total) * 100));
+          const elapsedMs = Math.max(1, Date.now() - (establishmentUploadStartRef.current || Date.now()));
+          const bytesPerSec = loaded / (elapsedMs / 1000);
+          const remainingSec = bytesPerSec > 0 ? Math.round((total - loaded) / bytesPerSec) : null;
+          const stage = percent >= 100 ? 'processing' : 'uploading';
+          setEstablishmentUploadStatus({ stage, percent, etaSec: remainingSec });
         },
       });
 
@@ -250,7 +293,7 @@ function App() {
     } catch (err) {
       logger.error('Establishment upload error:', err);
       
-      // Get error message from response, or use default message
+      // Get error message from response, or use extractErrorMessage for timeout/network
       let errorMessage = 'Failed to upload establishment data';
       let missingColumns = null;
       
@@ -261,8 +304,8 @@ function App() {
         if (err.response.data.errors && err.response.data.errors.missingColumns) {
           missingColumns = err.response.data.errors.missingColumns;
         }
-      } else if (err.message) {
-        errorMessage = err.message;
+      } else {
+        errorMessage = extractErrorMessage(err, errorMessage);
       }
       
       // If there are missing columns, add them to the error message
@@ -273,6 +316,7 @@ function App() {
       setError(errorMessage);
     } finally {
       setLoading(false);
+      setEstablishmentUploadStatus(null);
     }
   };
 
@@ -284,7 +328,7 @@ function App() {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `${type}_template.xlsx`);
+      link.setAttribute('download', `${type}_template.csv`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -335,9 +379,9 @@ function App() {
       const response = await api.delete(`/rrc/clear-all?username=${encodeURIComponent(user.username)}`);
       if (response.data?.success) {
         setSuccess(response.data.message || 'All RRC data cleared.');
-        setRrcDataLoaded(false);
         setRrcData([]);
-        // Do not call loadRRCData here - leave state empty so next upload or tab switch fetches fresh data
+        // Refetch to get consistent empty state (avoids blank screen)
+        await loadRRCData(true, true);
       }
     } catch (err) {
       logger.error('Clear all RRC error:', err);
@@ -711,8 +755,10 @@ function App() {
             onClick={() => {
               setActiveTab('view-rrc');
               setShowTrashInRRC(false); // Reset trash view when switching to View RRC Data tab
-              // Always load data when clicking the tab to ensure fresh data
-              loadRRCData(true);
+              // Load only if not already loaded (avoid refetch on every tab click)
+              if (!rrcDataLoaded) {
+                loadRRCData(true);
+              }
             }}
             className={activeTab === 'view-rrc' ? 'gov-tab active' : 'gov-tab'}
           >
@@ -752,7 +798,7 @@ function App() {
             onClick={() => {
               setActiveTab('reports');
               // Load RRC data if not already loaded
-              if (!rrcDataLoaded || rrcData.length === 0) {
+              if (!rrcDataLoaded || (rrcData || []).length === 0) {
                 loadRRCData(true);
               }
             }}
@@ -804,8 +850,22 @@ function App() {
                   style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
                 />
               </div>
+              {rrcUploadStatus && (
+                <div style={{ marginBottom: '10px', fontSize: '12px', color: '#555' }}>
+                  {rrcUploadStatus.stage === 'uploading' && (
+                    <span>
+                      Uploading: {rrcUploadStatus.percent}%{rrcUploadStatus.etaSec !== null ? ` (ETA ~${rrcUploadStatus.etaSec}s)` : ''}
+                    </span>
+                  )}
+                  {rrcUploadStatus.stage === 'processing' && (
+                    <span>Upload complete. Processing on server...</span>
+                  )}
+                </div>
+              )}
               <button type="submit" disabled={loading} style={{ padding: '10px 20px', background: '#007bff', color: 'white', border: 'none', cursor: 'pointer' }}>
-                {loading ? 'Uploading...' : 'Upload RRC Data'}
+                {loading
+                  ? (rrcUploadStatus?.stage === 'processing' ? 'Processing on server...' : 'Uploading...')
+                  : 'Upload RRC Data'}
               </button>
             </form>
           </div>
@@ -843,8 +903,22 @@ function App() {
                   style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
                 />
               </div>
+              {establishmentUploadStatus && (
+                <div style={{ marginBottom: '10px', fontSize: '12px', color: '#555' }}>
+                  {establishmentUploadStatus.stage === 'uploading' && (
+                    <span>
+                      Uploading: {establishmentUploadStatus.percent}%{establishmentUploadStatus.etaSec !== null ? ` (ETA ~${establishmentUploadStatus.etaSec}s)` : ''}
+                    </span>
+                  )}
+                  {establishmentUploadStatus.stage === 'processing' && (
+                    <span>Upload complete. Processing on server...</span>
+                  )}
+                </div>
+              )}
               <button type="submit" disabled={loading} style={{ padding: '10px 20px', background: '#007bff', color: 'white', border: 'none', cursor: 'pointer' }}>
-                {loading ? 'Uploading...' : 'Upload Establishment Data'}
+                {loading
+                  ? (establishmentUploadStatus?.stage === 'processing' ? 'Processing on server...' : 'Uploading...')
+                  : 'Upload Establishment Data'}
               </button>
             </form>
           </div>
@@ -890,16 +964,17 @@ function App() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
               <h2 style={{ color: showTrashInRRC ? '#8b5cf6' : 'inherit' }}>
                 {showTrashInRRC ? '🗑️ Trash - Deleted RRC Records' : (() => {
+                  const data = rrcData || [];
                   const filteredCount = rrcSearchQuery.trim() 
-                    ? (rrcData || []).filter(rrc => {
+                    ? data.filter(rrc => {
                         const query = rrcSearchQuery.toLowerCase().trim();
                         const estaCode = (rrc.ESTA_CODE || '').toString().toLowerCase();
                         const estaName = (rrc.ESTA_NAME || '').toString().toLowerCase();
                         const rrcNo = (rrc.RRC_NO || '').toString().toLowerCase();
                         return estaCode.includes(query) || estaName.includes(query) || rrcNo.includes(query);
                       }).length
-                    : rrcData.length;
-                  return `RRC Data (${filteredCount}${rrcSearchQuery.trim() ? ` of ${rrcData.length}` : ''} records)`;
+                    : data.length;
+                  return `RRC Data (${filteredCount}${rrcSearchQuery.trim() ? ` of ${data.length}` : ''} records)`;
                 })()}
               </h2>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -907,7 +982,10 @@ function App() {
                   <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
                     {/* IR/NIR Filter Buttons */}
                     <button
-                      onClick={() => setRrcIrNirFilter(null)}
+                      onClick={() => {
+                        setRrcIrNirFilter(null);
+                        setRrcCurrentPage(1);
+                      }}
                       style={{
                         padding: '6px 16px',
                         background: rrcIrNirFilter === null ? '#007bff' : '#6c757d',
@@ -922,7 +1000,10 @@ function App() {
                       ALL
                     </button>
                     <button
-                      onClick={() => setRrcIrNirFilter(rrcIrNirFilter === 'IR' ? null : 'IR')}
+                      onClick={() => {
+                        setRrcIrNirFilter(rrcIrNirFilter === 'IR' ? null : 'IR');
+                        setRrcCurrentPage(1);
+                      }}
                       style={{
                         padding: '6px 16px',
                         background: rrcIrNirFilter === 'IR' ? '#007bff' : '#6c757d',
@@ -937,7 +1018,10 @@ function App() {
                       IR
                     </button>
                     <button
-                      onClick={() => setRrcIrNirFilter(rrcIrNirFilter === 'NIR' ? null : 'NIR')}
+                      onClick={() => {
+                        setRrcIrNirFilter(rrcIrNirFilter === 'NIR' ? null : 'NIR');
+                        setRrcCurrentPage(1);
+                      }}
                       style={{
                         padding: '6px 16px',
                         background: rrcIrNirFilter === 'NIR' ? '#007bff' : '#6c757d',
@@ -955,7 +1039,10 @@ function App() {
                       type="text"
                       placeholder="Search by ESTA CODE, ESTA NAME, or RRC NO..."
                       value={rrcSearchQuery}
-                      onChange={(e) => setRrcSearchQuery(e.target.value)}
+                      onChange={(e) => {
+                        setRrcSearchQuery(e.target.value);
+                        setRrcCurrentPage(1);
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
@@ -970,7 +1057,10 @@ function App() {
                       }}
                     />
                     <button
-                      onClick={() => setRrcSearchQuery('')}
+                      onClick={() => {
+                        setRrcSearchQuery('');
+                        setRrcCurrentPage(1);
+                      }}
                       disabled={!rrcSearchQuery}
                       style={{
                         padding: '6px 12px',
@@ -1247,26 +1337,71 @@ function App() {
                       const valueB = b._sortOutstandTotWithRecRrc || 0;
                       return valueB - valueA; // Descending order
                     });
+
+                    // Frontend pagination (100 rows per page)
+                    const rowsPerPage = 100;
+                    const totalPages = Math.max(1, Math.ceil(filteredRrcData.length / rowsPerPage));
+                    const safePage = Math.min(rrcCurrentPage, totalPages);
+                    const startIndex = (safePage - 1) * rowsPerPage;
+                    const endIndex = startIndex + rowsPerPage;
+                    const currentPageData = filteredRrcData.slice(startIndex, endIndex);
                     
                     return (
-                      <RRCTable 
-                        rrcData={filteredRrcData} 
-                        loading={loadingData} 
-                        error={error} 
-                        username={user?.username || ''}
-                        establishmentData={establishmentData || []}
-                        officeData={officeData}
-                        onRefresh={() => {
-                          loadRRCData(true);
-                          // Also refresh trash data if trash view is shown
-                          if (showTrashInRRC && trashDataLoaded) {
-                            loadTrashData(true);
-                          }
-                        }}
-                        onSuccess={(message) => {
-                          setSuccess(message);
-                        }}
-                      />
+                      <>
+                        <RRCTable 
+                          rrcData={currentPageData} 
+                          loading={loadingData} 
+                          error={error} 
+                          username={user?.username || ''}
+                          establishmentData={establishmentData || []}
+                          officeData={officeData}
+                          onRefresh={() => {
+                            loadRRCData(true);
+                            // Also refresh trash data if trash view is shown
+                            if (showTrashInRRC && trashDataLoaded) {
+                              loadTrashData(true);
+                            }
+                          }}
+                          onSuccess={(message) => {
+                            setSuccess(message);
+                          }}
+                        />
+                        {filteredRrcData.length > rowsPerPage && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', gap: '10px' }}>
+                            <button
+                              onClick={() => setRrcCurrentPage(prev => Math.max(1, prev - 1))}
+                              disabled={safePage === 1}
+                              style={{
+                                padding: '6px 12px',
+                                background: safePage === 1 ? '#ccc' : '#007bff',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: safePage === 1 ? 'not-allowed' : 'pointer'
+                              }}
+                            >
+                              Previous
+                            </button>
+                            <div style={{ fontSize: '12px', color: '#666' }}>
+                              Page {safePage} of {totalPages} — Showing {startIndex + 1} to {Math.min(endIndex, filteredRrcData.length)} of {filteredRrcData.length} records
+                            </div>
+                            <button
+                              onClick={() => setRrcCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                              disabled={safePage === totalPages}
+                              style={{
+                                padding: '6px 12px',
+                                background: safePage === totalPages ? '#ccc' : '#007bff',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: safePage === totalPages ? 'not-allowed' : 'pointer'
+                              }}
+                            >
+                              Next
+                            </button>
+                          </div>
+                        )}
+                      </>
                     );
                   } catch (err) {
                     logger.error('Error rendering RRCTable:', err);
