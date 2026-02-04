@@ -607,18 +607,23 @@ function App() {
         <div className="gov-header">
           <div className="gov-header-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h1>EPFO Recovery Soft</h1>
-            <button 
-              onClick={handleLogout} 
-              className="gov-btn gov-btn-secondary"
-              style={{ 
-                padding: '8px 16px',
-                background: 'rgba(255, 255, 255, 0.2)',
-                color: 'var(--gov-white)',
-                borderColor: 'rgba(255, 255, 255, 0.3)'
-              }}
-            >
-              Logout
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--gov-white)', whiteSpace: 'nowrap' }}>
+                Created By Dev.Ashish
+              </div>
+              <button 
+                onClick={handleLogout} 
+                className="gov-btn gov-btn-secondary"
+                style={{ 
+                  padding: '8px 16px',
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  color: 'var(--gov-white)',
+                  borderColor: 'rgba(255, 255, 255, 0.3)'
+                }}
+              >
+                Logout
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1603,8 +1608,13 @@ function App() {
   // Show login or register form
   return (
     <div className="app">
-      <h1>EPFO Recovery Soft</h1>
-      
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '12px', flexWrap: 'wrap' }}>
+        <h1 style={{ marginBottom: 0 }}>EPFO Recovery Soft</h1>
+        <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--gov-primary)', whiteSpace: 'nowrap' }}>
+          Created By Dev.Ashish
+        </div>
+      </div>
+
       {/* Alert Messages at the top */}
       {error && (
         <div className="app-toast" style={{
